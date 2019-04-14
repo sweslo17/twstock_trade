@@ -67,7 +67,7 @@ def baseline(df, money_in_pocket, from_date, to_date, stock_share=0):
     return money_in_pocket, stock_share, process_df.iloc[-1]["收盤價"], trade_logger
 
 
-def KD_basic(df, money_in_pocket, from_date, to_date, K_threshold=(20,80), D_threshold=(20,80), stock_share=0):
+def KD_basic(df, money_in_pocket, from_date, to_date, K_threshold=(20,80), D_threshold=(20,80), stock_share=0, all_in=False, cross=False):
     """
     KD基礎model
     K,D>threshold賣出，K,D<threshold買進，加入是否黃金交叉判斷
@@ -100,16 +100,32 @@ def KD_basic(df, money_in_pocket, from_date, to_date, K_threshold=(20,80), D_thr
         if row['是否為除權日']:
             money_in_pocket += stock_share*row["股票股利"]
             trade_logger.get_interest(row["date"], stock_share, row["股票股利"], money_in_pocket)
-        if row["K_9"] <= K_threshold[0] and row["D_9"] <= D_threshold[0]:# and _index_cross(row["D_9"], row["K_9"], last_D, last_K, golden=True):
+        if cross:
+            golden_cross = _index_cross(row["D_9"], row["K_9"], last_D, last_K, golden=True)
+            death_cross = _index_cross(row["D_9"], row["K_9"], last_D, last_K, golden=False)
+        else:
+            golden_cross = death_cross = True
+        if row["K_9"] <= K_threshold[0] and row["D_9"] <= D_threshold[0] and golden_cross:
             if money_in_pocket >= row["收盤價"]:
-                money_in_pocket -= row["收盤價"]
-                stock_share += 1
-                trade_logger.buy_stock(row["date"], 1, row["收盤價"], money_in_pocket)
-        elif row["K_9"] >= K_threshold[1] and row["D_9"] >= D_threshold[1]:# and _index_cross(row["D_9"], row["K_9"], last_D, last_K, golden=False):
+                if all_in:
+                    buy_amount = int(money_in_pocket/row["收盤價"])
+                    money_in_pocket -= buy_amount * row["收盤價"]
+                    stock_share += buy_amount
+                    trade_logger.buy_stock(row["date"], buy_amount, row["收盤價"], money_in_pocket)
+                else:
+                    money_in_pocket -= row["收盤價"]
+                    stock_share += 1
+                    trade_logger.buy_stock(row["date"], 1, row["收盤價"], money_in_pocket)
+        elif row["K_9"] >= K_threshold[1] and row["D_9"] >= D_threshold[1] and death_cross:
             if stock_share > 0:
-                stock_share -= 1
-                money_in_pocket += row["收盤價"]
-                trade_logger.sell_stock(row["date"], 1, row["收盤價"], money_in_pocket)
+                if all_in:
+                    money_in_pocket += row["收盤價"] * stock_share
+                    trade_logger.sell_stock(row["date"], stock_share, row["收盤價"], money_in_pocket)
+                    stock_share = 0
+                else:
+                    stock_share -= 1
+                    money_in_pocket += row["收盤價"]
+                    trade_logger.sell_stock(row["date"], 1, row["收盤價"], money_in_pocket)
         last_K = row["K_9"]
         last_D = row["D_9"]
     return money_in_pocket, stock_share, process_df.iloc[-1]["收盤價"], trade_logger
