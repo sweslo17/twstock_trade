@@ -1,6 +1,8 @@
 import toolbox
 
 def trans_int(input):
+    if type(input) == str and "," in input:
+        input = input.replace(",", "")
     try:
         return int(input)
     except:
@@ -8,6 +10,8 @@ def trans_int(input):
         return None
     
 def trans_float(input):
+    if type(input) == str and "," in input:
+        input = input.replace(",", "")
     try:
         return float(input)
     except:
